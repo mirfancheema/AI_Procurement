@@ -260,14 +260,12 @@ select {
   overflow: auto;
 }
 
-.artifact-list {
+.artifact-viewer {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fbfcfa;
   padding: 10px;
   min-height: 82px;
-  display: grid;
-  gap: 8px;
 }
 
 .mail-entry,
@@ -296,19 +294,45 @@ select {
   align-items: center;
 }
 
-.artifact-link {
-  color: var(--brand-strong);
-  font-weight: 600;
-  text-decoration: none;
-  border: 1px solid #b8cbb8;
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: #ecf5ed;
-  white-space: nowrap;
+.step-artifacts {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #c9d6c7;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.artifact-link:hover {
+.artifact-mini-link {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--brand-strong);
+  background: #ecf5ed;
+  border: 1px solid #b8cbb8;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.artifact-mini-link:hover {
   background: #d7eeda;
+}
+
+.artifact-viewer .viewer-title {
+  margin: 0 0 6px;
+}
+
+.artifact-viewer pre {
+  margin: 0;
+  border: 1px solid #dde7d5;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+  max-height: 340px;
+  overflow: auto;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
 }
 
 .meta {

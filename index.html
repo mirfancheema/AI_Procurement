@@ -53,6 +53,7 @@
           <button class="btn" type="submit">Generate Forecast</button>
         </form>
         <div class="results" id="forecastResults"></div>
+        <div class="step-artifacts" id="forecastArtifacts"></div>
       </article>
 
       <article class="card panel">
@@ -64,6 +65,7 @@
           <button class="btn subtle" id="requestPriceBtn">Request Supplier Pricing</button>
           <button class="btn caution" id="humanSignoffBtn">Human Pricing Sign-off</button>
         </div>
+        <div class="step-artifacts" id="prArtifacts"></div>
       </article>
 
       <article class="card panel">
@@ -86,6 +88,7 @@
           <button class="btn subtle" id="approveBtn">Approve PR</button>
           <button class="btn subtle" id="delegateBtn">Delegate (Absence Rule)</button>
         </div>
+        <div class="step-artifacts" id="approvalArtifacts"></div>
       </article>
 
       <article class="card panel">
@@ -97,6 +100,7 @@
           <button class="btn subtle" id="reminderBtn">Send Delivery Reminder</button>
           <button class="btn caution" id="handoffBtn">Supplier Requests Human</button>
         </div>
+        <div class="step-artifacts" id="commsArtifacts"></div>
       </article>
 
       <article class="card panel">
@@ -108,6 +112,7 @@
           <button class="btn subtle" id="partialDeliveryBtn">Record Partial Delivery</button>
           <button class="btn subtle" id="grnBtn">Generate GRN</button>
         </div>
+        <div class="step-artifacts" id="deliveryArtifacts"></div>
       </article>
 
       <article class="card panel">
@@ -119,6 +124,7 @@
           <button class="btn subtle" id="matchBtn">Run 3-Way Match</button>
           <button class="btn caution" id="executePaymentBtn">Execute Payment</button>
         </div>
+        <div class="step-artifacts" id="paymentArtifacts"></div>
       </article>
 
       <article class="card panel wide">
@@ -133,6 +139,7 @@
           </table>
         </div>
         <div class="stack" id="supplierScoreSummary"></div>
+        <div class="step-artifacts" id="scoreArtifacts"></div>
       </article>
 
       <article class="card panel wide">
@@ -142,9 +149,9 @@
       </article>
 
       <article class="card panel wide">
-        <h2>POC Artifacts</h2>
-        <p>Each workflow step generates a mock output artifact. Click any link to retrieve it.</p>
-        <div class="artifact-list" id="artifactList"></div>
+        <h2>Artifact Viewer</h2>
+        <p>Click any step artifact link above to view the mock output for POC demos.</p>
+        <div class="artifact-viewer" id="artifactViewer"></div>
       </article>
     </section>
   </main>

@@ -72,7 +72,8 @@ const state = {
     qualityIssues: 95
   },
   audit: [],
-  artifacts: []
+  artifacts: [],
+  activeArtifactKey: null
 };
 
 const dom = {
@@ -109,7 +110,14 @@ const dom = {
   scoreTable: document.getElementById("scoreTable"),
   supplierScoreSummary: document.getElementById("supplierScoreSummary"),
   auditLog: document.getElementById("auditLog"),
-  artifactList: document.getElementById("artifactList")
+  forecastArtifacts: document.getElementById("forecastArtifacts"),
+  prArtifacts: document.getElementById("prArtifacts"),
+  approvalArtifacts: document.getElementById("approvalArtifacts"),
+  commsArtifacts: document.getElementById("commsArtifacts"),
+  deliveryArtifacts: document.getElementById("deliveryArtifacts"),
+  paymentArtifacts: document.getElementById("paymentArtifacts"),
+  scoreArtifacts: document.getElementById("scoreArtifacts"),
+  artifactViewer: document.getElementById("artifactViewer")
 };
 
 function nowStamp() {
@@ -122,10 +130,6 @@ function money(value) {
 
 function safeName(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
-function artifactHref(artifact) {
-  return `data:${artifact.mime};charset=utf-8,${encodeURIComponent(artifact.content)}`;
 }
 
 function upsertArtifact(stepKey, title, content, mime = "application/json", ext = "json") {
@@ -141,6 +145,7 @@ function upsertArtifact(stepKey, title, content, mime = "application/json", ext 
   };
 
   state.artifacts = [artifact, ...state.artifacts.filter((a) => a.stepKey !== artifact.stepKey)].slice(0, 30);
+  state.activeArtifactKey = artifact.stepKey;
   renderArtifacts();
 }
 
@@ -367,22 +372,67 @@ function renderAudit() {
 }
 
 function renderArtifacts() {
+  const containers = {
+    forecastArtifacts: [],
+    prArtifacts: [],
+    approvalArtifacts: [],
+    commsArtifacts: [],
+    deliveryArtifacts: [],
+    paymentArtifacts: [],
+    scoreArtifacts: []
+  };
+
+  for (const artifact of state.artifacts) {
+    const target = artifactContainerForStep(artifact.stepKey);
+    if (target) containers[target].push(artifact);
+  }
+
+  for (const [containerId, items] of Object.entries(containers)) {
+    if (!items.length) {
+      dom[containerId].innerHTML = "<span class='meta'>No artifact yet.</span>";
+      continue;
+    }
+
+    dom[containerId].innerHTML = items
+      .map((artifact) => `<a href="#" class="artifact-mini-link" data-artifact-key="${artifact.stepKey}">${artifact.title}</a>`)
+      .join("");
+  }
+
+  renderArtifactViewer();
+}
+
+function artifactContainerForStep(stepKey) {
+  if (stepKey.startsWith("01-")) return "forecastArtifacts";
+  if (stepKey.startsWith("02-") || stepKey.startsWith("03-") || stepKey.startsWith("04-")) return "prArtifacts";
+  if (stepKey.startsWith("05-") || stepKey.startsWith("06")) return "approvalArtifacts";
+  if (stepKey.startsWith("07-") || stepKey.startsWith("08-")) return "commsArtifacts";
+  if (stepKey.startsWith("09-") || stepKey.startsWith("10-") || stepKey.startsWith("11-")) return "deliveryArtifacts";
+  if (stepKey.startsWith("12-") || stepKey.startsWith("13-") || stepKey.startsWith("14-")) return "paymentArtifacts";
+  if (stepKey.startsWith("15-")) return "scoreArtifacts";
+  return null;
+}
+
+function renderArtifactViewer() {
   if (!state.artifacts.length) {
-    dom.artifactList.innerHTML = "<div class='artifact-entry'><p>No artifacts generated yet.</p></div>";
+    dom.artifactViewer.innerHTML = "<div class='artifact-entry'><p>No artifact selected.</p></div>";
     return;
   }
 
-  dom.artifactList.innerHTML = state.artifacts
-    .map((artifact) => `
-      <div class="artifact-entry">
-        <div>
-          <p><strong>${artifact.title}</strong></p>
-          <p class="meta">${artifact.time} | ${artifact.filename}</p>
-        </div>
-        <a class="artifact-link" href="${artifactHref(artifact)}" download="${artifact.filename}">Retrieve</a>
-      </div>
-    `)
-    .join("");
+  const selected = state.artifacts.find((artifact) => artifact.stepKey === state.activeArtifactKey) || state.artifacts[0];
+  state.activeArtifactKey = selected.stepKey;
+
+  dom.artifactViewer.innerHTML = `
+    <p class="viewer-title"><strong>${selected.title}</strong></p>
+    <p class="meta">${selected.time} | ${selected.filename}</p>
+    <pre>${escapeHtml(selected.content)}</pre>
+  `;
+}
+
+function escapeHtml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 function canApproveWithRole(role, threshold) {
@@ -392,6 +442,16 @@ function canApproveWithRole(role, threshold) {
 }
 
 function bindEvents() {
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest(".artifact-mini-link");
+    if (!link) return;
+    event.preventDefault();
+    const key = link.dataset.artifactKey;
+    if (!key) return;
+    state.activeArtifactKey = key;
+    renderArtifactViewer();
+  });
+
   dom.roleSelect.addEventListener("change", () => {
     if (dom.roleSelect.value === "manager" && Number(dom.thresholdInput.value) > 5) {
       dom.thresholdInput.value = "5";
