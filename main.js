@@ -74,6 +74,8 @@ const state = {
   audit: [],
   artifacts: [],
   activeArtifactKey: null,
+  pendingApprovals: [],
+  selectedPendingApprovalId: null,
   demoMode: false,
   demoRunning: false
 };
@@ -94,6 +96,7 @@ const dom = {
   roleSelect: document.getElementById("roleSelect"),
   thresholdInput: document.getElementById("thresholdInput"),
   approvalSummary: document.getElementById("approvalSummary"),
+  pendingApprovalSelect: document.getElementById("pendingApprovalSelect"),
   routeApprovalBtn: document.getElementById("routeApprovalBtn"),
   approveBtn: document.getElementById("approveBtn"),
   delegateBtn: document.getElementById("delegateBtn"),
@@ -353,8 +356,14 @@ function renderPr() {
 }
 
 function renderApproval() {
+  const pendingCount = state.pendingApprovals.filter((item) => item.status === "pending").length;
+
   if (!state.approval) {
-    dom.approvalSummary.innerHTML = "<span class='pill'>Awaiting PR routing</span>";
+    dom.approvalSummary.innerHTML = `
+      <span class='pill'>Awaiting PR routing</span>
+      <span class='pill ${pendingCount ? "warn" : "good"}">Pending Queue: ${pendingCount}</span>
+    `;
+    renderPendingApprovalItems();
     return;
   }
 
@@ -364,7 +373,61 @@ function renderApproval() {
     <span class="pill">Threshold: ${a.threshold}%</span>
     <span class="pill ${a.requiresApproval ? "warn" : "good"}">Variance: ${a.variance}%</span>
     <span class="pill ${a.approved ? "good" : "warn"}">Status: ${a.approved ? "Approved" : a.requiresApproval ? "Awaiting Decision" : "Auto-convert Eligible"}</span>
+    <span class="pill ${pendingCount ? "warn" : "good"}">Pending Queue: ${pendingCount}</span>
   `;
+  renderPendingApprovalItems();
+}
+
+function renderPendingApprovalItems() {
+  const pendingItems = state.pendingApprovals.filter((item) => item.status === "pending");
+  if (!pendingItems.length) {
+    dom.pendingApprovalSelect.innerHTML = "<option>No pending items</option>";
+    dom.pendingApprovalSelect.disabled = true;
+    return;
+  }
+
+  dom.pendingApprovalSelect.disabled = false;
+  dom.pendingApprovalSelect.innerHTML = pendingItems
+    .map((item) => `<option value="${item.id}">${item.prId} | ${item.supplier} | ${item.variance}% variance</option>`)
+    .join("");
+
+  const selectedId = state.selectedPendingApprovalId;
+  if (selectedId && pendingItems.some((item) => item.id === selectedId)) {
+    dom.pendingApprovalSelect.value = selectedId;
+  } else {
+    state.selectedPendingApprovalId = pendingItems[0].id;
+    dom.pendingApprovalSelect.value = state.selectedPendingApprovalId;
+  }
+}
+
+function seedMockPendingApprovals() {
+  if (state.pendingApprovals.length) return;
+
+  state.pendingApprovals = [
+    {
+      id: "APR-900101",
+      prId: "PR-241901",
+      supplier: "Atlas Components",
+      variance: 6.8,
+      role: "manager",
+      roleLabel: "Purchase Manager (max 5%)",
+      threshold: 4.5,
+      status: "pending",
+      createdAt: nowStamp()
+    },
+    {
+      id: "APR-900102",
+      prId: "PR-241902",
+      supplier: "NimblePak",
+      variance: 8.2,
+      role: "director",
+      roleLabel: "Company Director (max 20%)",
+      threshold: 5,
+      status: "pending",
+      createdAt: nowStamp()
+    }
+  ];
+  state.selectedPendingApprovalId = state.pendingApprovals[0].id;
 }
 
 function renderMailbox() {
@@ -540,6 +603,25 @@ function canApproveWithRole(role, threshold) {
   return false;
 }
 
+function queueApprovalItem(item) {
+  const queueItem = {
+    ...item,
+    status: "pending",
+    createdAt: nowStamp()
+  };
+  state.pendingApprovals = [queueItem, ...state.pendingApprovals.filter((existing) => existing.id !== queueItem.id)].slice(0, 20);
+  state.selectedPendingApprovalId = queueItem.id;
+  renderPendingApprovalItems();
+}
+
+function advanceAfterApprovalForActivePr(approvedPrId) {
+  const isActivePr = Boolean(state.pr && approvedPrId === state.pr.id);
+  updateStage(isActivePr ? "PR Approved - Ready for PO Dispatch" : "Pending Approval Item Approved");
+  if (isActivePr && state.demoMode && !state.delivery.expectedDate) {
+    dom.sendPoBtn.click();
+  }
+}
+
 function pause(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -567,14 +649,20 @@ async function runDemoWorkflow() {
     dom.humanSignoffBtn.click();
     await pause(180);
 
-    dom.roleSelect.value = "director";
-    dom.thresholdInput.value = "20";
+    dom.roleSelect.value = "manager";
+    dom.thresholdInput.value = "0";
     dom.routeApprovalBtn.click();
     await pause(160);
+    if (!dom.pendingApprovalSelect.disabled) {
+      dom.pendingApprovalSelect.selectedIndex = 0;
+      dom.pendingApprovalSelect.dispatchEvent(new Event("change"));
+    }
     dom.approveBtn.click();
     await pause(180);
 
-    dom.sendPoBtn.click();
+    if (!state.delivery.expectedDate) {
+      dom.sendPoBtn.click();
+    }
     await pause(180);
     dom.reminderBtn.click();
     await pause(180);
@@ -632,6 +720,23 @@ function bindEvents() {
       dom.thresholdInput.value = "5";
     }
     logAudit(`Role switched to ${dom.roleSelect.options[dom.roleSelect.selectedIndex].text}`);
+  });
+
+  dom.pendingApprovalSelect.addEventListener("change", () => {
+    const id = dom.pendingApprovalSelect.value;
+    state.selectedPendingApprovalId = id;
+    const selectedItem = state.pendingApprovals.find((item) => item.id === id && item.status === "pending");
+    if (selectedItem) {
+      state.approval = {
+        role: selectedItem.role,
+        roleLabel: selectedItem.roleLabel,
+        threshold: selectedItem.threshold,
+        variance: selectedItem.variance,
+        requiresApproval: true,
+        approved: false
+      };
+      renderApproval();
+    }
   });
 
   dom.forecastForm.addEventListener("submit", (event) => {
@@ -786,6 +891,17 @@ function bindEvents() {
     state.approval = { role, roleLabel, threshold, variance, requiresApproval, approved: !requiresApproval };
     updateStage(requiresApproval ? "Awaiting Approval" : "Auto-convert Eligible");
     adjustAutomation(8);
+    if (requiresApproval) {
+      queueApprovalItem({
+        id: `APR-${Date.now().toString().slice(-6)}`,
+        prId: state.pr.id,
+        supplier: state.pr.supplier,
+        variance,
+        role,
+        roleLabel,
+        threshold
+      });
+    }
     renderApproval();
     upsertArtifact("05-approval-routing", "Approval Routing Packet", {
       prId: state.pr.id,
@@ -799,28 +915,56 @@ function bindEvents() {
 
     if (!requiresApproval) {
       logAudit(`PR ${state.pr.id} within ${threshold}% threshold. Auto-convert path enabled.`);
+      advanceAfterApprovalForActivePr(state.pr.id);
     } else {
       logAudit(`PR ${state.pr.id} routed for approval. Variance ${variance}% exceeds ${threshold}% threshold.`);
     }
   });
 
   dom.approveBtn.addEventListener("click", () => {
-    if (!state.approval) {
+    const selectedId = state.selectedPendingApprovalId || dom.pendingApprovalSelect.value;
+    const selectedItem = state.pendingApprovals.find((item) => item.id === selectedId && item.status === "pending");
+
+    if (!state.approval && !selectedItem) {
       logAudit("Approve action blocked: no routed approval.");
       return;
     }
 
+    if (!state.approval && selectedItem) {
+      state.approval = {
+        role: selectedItem.role,
+        roleLabel: selectedItem.roleLabel,
+        threshold: selectedItem.threshold,
+        variance: selectedItem.variance,
+        requiresApproval: true,
+        approved: false
+      };
+    }
+
+    if (state.approval.requiresApproval && !selectedItem) {
+      logAudit("Approve action blocked: select a pending approval item first.");
+      return;
+    }
+
+    if (selectedItem) {
+      selectedItem.status = "approved";
+      selectedItem.approvedAt = nowStamp();
+      selectedItem.approverRole = state.approval.role;
+      state.pendingApprovals = state.pendingApprovals.filter((item) => item.status === "pending");
+      state.selectedPendingApprovalId = state.pendingApprovals[0]?.id || null;
+    }
+
     state.approval.approved = true;
-    updateStage("PR Approved");
+    advanceAfterApprovalForActivePr(selectedItem ? selectedItem.prId : state.pr.id);
     adjustAutomation(3);
     renderApproval();
     upsertArtifact("06-approval-decision", "Approval Decision", {
-      prId: state.pr.id,
+      prId: selectedItem ? selectedItem.prId : state.pr.id,
       decision: "Approved",
       approverRole: state.approval.role,
       approvedAt: nowStamp()
     });
-    logAudit(`PR approved by authorized approver (${state.approval.role}).`);
+    logAudit(`Selected approval item approved by ${state.approval.role}; moved to next workflow step.`);
   });
 
   dom.delegateBtn.addEventListener("click", () => {
@@ -1060,6 +1204,7 @@ function bindEvents() {
 }
 
 function bootstrap() {
+  seedMockPendingApprovals();
   populateSkuList();
   renderKpis();
   renderForecast();

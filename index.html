@@ -91,9 +91,13 @@
           </label>
         </div>
         <div class="stack" id="approvalSummary"></div>
+        <div class="queue">
+          <p class="label">Pending Approval Items</p>
+          <select id="pendingApprovalSelect" size="4"></select>
+        </div>
         <div class="actions">
           <button class="btn" id="routeApprovalBtn">Route for Approval</button>
-          <button class="btn subtle" id="approveBtn">Approve PR</button>
+          <button class="btn subtle" id="approveBtn">Approve Selected</button>
           <button class="btn subtle" id="delegateBtn">Delegate (Absence Rule)</button>
         </div>
         <div class="step-artifacts" id="approvalArtifacts"></div>
