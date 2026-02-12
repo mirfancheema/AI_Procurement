@@ -107,6 +107,10 @@ h1 {
   gap: 12px;
 }
 
+.demo-controls {
+  margin-bottom: 12px;
+}
+
 .kpi-grid {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   margin-bottom: 12px;

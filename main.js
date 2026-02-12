@@ -73,7 +73,9 @@ const state = {
   },
   audit: [],
   artifacts: [],
-  activeArtifactKey: null
+  activeArtifactKey: null,
+  demoMode: false,
+  demoRunning: false
 };
 
 const dom = {
@@ -117,7 +119,9 @@ const dom = {
   deliveryArtifacts: document.getElementById("deliveryArtifacts"),
   paymentArtifacts: document.getElementById("paymentArtifacts"),
   scoreArtifacts: document.getElementById("scoreArtifacts"),
-  artifactViewer: document.getElementById("artifactViewer")
+  artifactViewer: document.getElementById("artifactViewer"),
+  runDemoBtn: document.getElementById("runDemoBtn"),
+  downloadArtifactPdfBtn: document.getElementById("downloadArtifactPdfBtn")
 };
 
 function nowStamp() {
@@ -130,6 +134,99 @@ function money(value) {
 
 function safeName(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function getActiveArtifact() {
+  return state.artifacts.find((artifact) => artifact.stepKey === state.activeArtifactKey) || null;
+}
+
+function wrapLines(text, maxLen = 90) {
+  const normalized = String(text).replace(/\r\n/g, "\n");
+  const rawLines = normalized.split("\n");
+  const output = [];
+
+  for (const line of rawLines) {
+    const sanitized = line.replace(/[^\x20-\x7E]/g, "?");
+    if (sanitized.length <= maxLen) {
+      output.push(sanitized);
+      continue;
+    }
+
+    let current = "";
+    for (const word of sanitized.split(" ")) {
+      const next = current ? `${current} ${word}` : word;
+      if (next.length > maxLen) {
+        if (current) output.push(current);
+        current = word;
+      } else {
+        current = next;
+      }
+    }
+    if (current) output.push(current);
+  }
+
+  return output.slice(0, 75);
+}
+
+function pdfEscape(line) {
+  return line.replaceAll("\\", "\\\\").replaceAll("(", "\\(").replaceAll(")", "\\)");
+}
+
+function buildPdfBlob(artifact) {
+  const lines = [
+    `OrderPilot Artifact: ${artifact.title}`,
+    `Generated: ${artifact.time}`,
+    `File: ${artifact.filename}`,
+    "",
+    ...wrapLines(artifact.content, 94)
+  ];
+
+  const contentStream = [
+    "BT",
+    "/F1 9 Tf",
+    "11 TL",
+    "50 760 Td",
+    ...lines.flatMap((line, idx) => (idx === 0 ? [`(${pdfEscape(line)}) Tj`] : ["T*", `(${pdfEscape(line)}) Tj`])),
+    "ET"
+  ].join("\n");
+
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>"
+  ];
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (let i = 0; i < objects.length; i += 1) {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+  for (let i = 1; i < offsets.length; i += 1) {
+    pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+function downloadArtifactPdf(artifact) {
+  if (!artifact) return;
+  const blob = buildPdfBlob(artifact);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = artifact.filename.replace(/\.[^.]+$/, ".pdf");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function upsertArtifact(stepKey, title, content, mime = "application/json", ext = "json") {
@@ -394,7 +491,7 @@ function renderArtifacts() {
     }
 
     dom[containerId].innerHTML = items
-      .map((artifact) => `<a href="#" class="artifact-mini-link" data-artifact-key="${artifact.stepKey}">${artifact.title}</a>`)
+      .map((artifact) => `<a href="#" class="artifact-mini-link" data-artifact-key="${artifact.stepKey}">${artifact.title}</a><a href="#" class="artifact-mini-link" data-artifact-key="${artifact.stepKey}" data-download-pdf="1">PDF</a>`)
       .join("");
   }
 
@@ -415,11 +512,13 @@ function artifactContainerForStep(stepKey) {
 function renderArtifactViewer() {
   if (!state.artifacts.length) {
     dom.artifactViewer.innerHTML = "<div class='artifact-entry'><p>No artifact selected.</p></div>";
+    if (dom.downloadArtifactPdfBtn) dom.downloadArtifactPdfBtn.disabled = true;
     return;
   }
 
   const selected = state.artifacts.find((artifact) => artifact.stepKey === state.activeArtifactKey) || state.artifacts[0];
   state.activeArtifactKey = selected.stepKey;
+  if (dom.downloadArtifactPdfBtn) dom.downloadArtifactPdfBtn.disabled = false;
 
   dom.artifactViewer.innerHTML = `
     <p class="viewer-title"><strong>${selected.title}</strong></p>
@@ -441,6 +540,67 @@ function canApproveWithRole(role, threshold) {
   return false;
 }
 
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runDemoWorkflow() {
+  if (state.demoRunning) return;
+
+  state.demoRunning = true;
+  state.demoMode = true;
+  dom.runDemoBtn.disabled = true;
+  dom.runDemoBtn.textContent = "Running Demo...";
+  logAudit("POC demo runner started.");
+
+  try {
+    dom.skuSelect.value = skuCatalog[0].id;
+    dom.monthSelect.value = "March 2026";
+    dom.budgetInput.value = "25000";
+    dom.forecastForm.requestSubmit();
+    await pause(180);
+
+    dom.createPrBtn.click();
+    await pause(180);
+    dom.requestPriceBtn.click();
+    await pause(180);
+    dom.humanSignoffBtn.click();
+    await pause(180);
+
+    dom.roleSelect.value = "director";
+    dom.thresholdInput.value = "20";
+    dom.routeApprovalBtn.click();
+    await pause(160);
+    dom.approveBtn.click();
+    await pause(180);
+
+    dom.sendPoBtn.click();
+    await pause(180);
+    dom.reminderBtn.click();
+    await pause(180);
+    dom.syncDeliveryBtn.click();
+    await pause(180);
+    dom.partialDeliveryBtn.click();
+    await pause(180);
+    dom.grnBtn.click();
+    await pause(180);
+
+    dom.invoiceBtn.click();
+    await pause(180);
+    dom.matchBtn.click();
+    await pause(180);
+    dom.executePaymentBtn.click();
+    await pause(100);
+
+    logAudit("POC demo runner completed.");
+  } finally {
+    state.demoMode = false;
+    state.demoRunning = false;
+    dom.runDemoBtn.disabled = false;
+    dom.runDemoBtn.textContent = "Run Full Demo";
+  }
+}
+
 function bindEvents() {
   document.addEventListener("click", (event) => {
     const link = event.target.closest(".artifact-mini-link");
@@ -450,6 +610,21 @@ function bindEvents() {
     if (!key) return;
     state.activeArtifactKey = key;
     renderArtifactViewer();
+
+    if (link.dataset.downloadPdf === "1") {
+      const selected = getActiveArtifact();
+      downloadArtifactPdf(selected);
+    }
+  });
+
+  dom.runDemoBtn.addEventListener("click", () => {
+    runDemoWorkflow();
+  });
+
+  dom.downloadArtifactPdfBtn.addEventListener("click", () => {
+    const artifact = getActiveArtifact();
+    if (!artifact) return;
+    downloadArtifactPdf(artifact);
   });
 
   dom.roleSelect.addEventListener("change", () => {
@@ -743,7 +918,7 @@ function bindEvents() {
       return;
     }
 
-    const late = Math.random() > 0.65;
+    const late = state.demoMode ? false : Math.random() > 0.65;
     const actualDate = new Date();
     actualDate.setDate(actualDate.getDate() + (late ? 2 : 0));
     state.delivery.actualDate = actualDate.toLocaleDateString();
@@ -782,7 +957,7 @@ function bindEvents() {
       return;
     }
 
-    const delivered = Math.round(state.pr.qty * (0.45 + Math.random() * 0.4));
+    const delivered = state.demoMode ? state.pr.qty : Math.round(state.pr.qty * (0.45 + Math.random() * 0.4));
     state.delivery.partialDelivered = delivered;
     state.delivery.discrepancyFlag = delivered < state.pr.qty;
     renderDelivery();

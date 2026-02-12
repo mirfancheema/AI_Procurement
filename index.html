@@ -30,6 +30,14 @@
       </div>
     </header>
 
+    <section class="card panel demo-controls">
+      <h2>POC Demo Runner</h2>
+      <p>Run a guided mock workflow end-to-end using built-in sample data.</p>
+      <div class="actions">
+        <button class="btn" id="runDemoBtn">Run Full Demo</button>
+      </div>
+    </section>
+
     <section class="grid kpi-grid" id="kpiGrid"></section>
 
     <section class="grid app-grid">
@@ -151,6 +159,9 @@
       <article class="card panel wide">
         <h2>Artifact Viewer</h2>
         <p>Click any step artifact link above to view the mock output for POC demos.</p>
+        <div class="actions">
+          <button class="btn subtle" id="downloadArtifactPdfBtn">Download Current Artifact (PDF)</button>
+        </div>
         <div class="artifact-viewer" id="artifactViewer"></div>
       </article>
     </section>
