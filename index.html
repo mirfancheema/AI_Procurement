@@ -3,12 +3,152 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello World</title>
-  <link href='/style.css' rel='stylesheet'>
+  <title>OrderPilot | AI Procurement Co-Pilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="/style.css" rel="stylesheet">
 </head>
 <body>
-  <h1>Hello, world!</h1>
-  <button onclick="console.log('hello');">Press me</button>
+  <div class="background-glow" aria-hidden="true"></div>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">SME Procurement OS</p>
+        <h1>OrderPilot</h1>
+        <p class="subtitle">AI procurement co-pilot with human control points, threshold approvals, and auditable automation.</p>
+      </div>
+      <div class="hero-meta">
+        <div class="card stat">
+          <p class="label">Automation Rate</p>
+          <p class="value" id="automationRate">0%</p>
+        </div>
+        <div class="card stat">
+          <p class="label">Workflow Stage</p>
+          <p class="value" id="workflowStage">Forecast</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid kpi-grid" id="kpiGrid"></section>
+
+    <section class="grid app-grid">
+      <article class="card panel">
+        <h2>1. Forecasting Engine</h2>
+        <p>Uses historical demand and procurement behavior to propose reorder points and safety stock.</p>
+        <form id="forecastForm" class="form-grid">
+          <label>SKU
+            <select id="skuSelect"></select>
+          </label>
+          <label>Month
+            <select id="monthSelect">
+              <option>March 2026</option>
+              <option>April 2026</option>
+              <option>May 2026</option>
+            </select>
+          </label>
+          <label>Budget (USD)
+            <input id="budgetInput" type="number" min="1000" value="25000" />
+          </label>
+          <button class="btn" type="submit">Generate Forecast</button>
+        </form>
+        <div class="results" id="forecastResults"></div>
+      </article>
+
+      <article class="card panel">
+        <h2>2. Draft PR Generator</h2>
+        <p>Auto-creates draft PR from forecast, requests latest supplier pricing by email, and requires human pricing sign-off.</p>
+        <div class="stack" id="prSummary"></div>
+        <div class="actions">
+          <button class="btn" id="createPrBtn">Create Draft PR</button>
+          <button class="btn subtle" id="requestPriceBtn">Request Supplier Pricing</button>
+          <button class="btn caution" id="humanSignoffBtn">Human Pricing Sign-off</button>
+        </div>
+      </article>
+
+      <article class="card panel">
+        <h2>3. Approval Workflow</h2>
+        <p>Threshold-based routing with role permissions and escalation tracking.</p>
+        <div class="form-grid compact">
+          <label>User Role
+            <select id="roleSelect">
+              <option value="manager">Purchase Manager (max 5%)</option>
+              <option value="director">Company Director (max 20%)</option>
+            </select>
+          </label>
+          <label>Variance Threshold (%)
+            <input id="thresholdInput" type="number" min="0" max="20" step="0.5" value="5" />
+          </label>
+        </div>
+        <div class="stack" id="approvalSummary"></div>
+        <div class="actions">
+          <button class="btn" id="routeApprovalBtn">Route for Approval</button>
+          <button class="btn subtle" id="approveBtn">Approve PR</button>
+          <button class="btn subtle" id="delegateBtn">Delegate (Absence Rule)</button>
+        </div>
+      </article>
+
+      <article class="card panel">
+        <h2>4. Supplier Communication Agent</h2>
+        <p>Email-native communication with AI disclosure tag and human handoff path.</p>
+        <div class="mailbox" id="mailbox"></div>
+        <div class="actions">
+          <button class="btn" id="sendPoBtn">Send PO Email</button>
+          <button class="btn subtle" id="reminderBtn">Send Delivery Reminder</button>
+          <button class="btn caution" id="handoffBtn">Supplier Requests Human</button>
+        </div>
+      </article>
+
+      <article class="card panel">
+        <h2>5. Delivery & GRN Tracking</h2>
+        <p>Periodic sync tracking, discrepancy flags, and manual GRN entry for received quantities.</p>
+        <div class="stack" id="deliverySummary"></div>
+        <div class="actions">
+          <button class="btn" id="syncDeliveryBtn">Periodic Status Sync</button>
+          <button class="btn subtle" id="partialDeliveryBtn">Record Partial Delivery</button>
+          <button class="btn subtle" id="grnBtn">Generate GRN</button>
+        </div>
+      </article>
+
+      <article class="card panel">
+        <h2>6. Payments & 3-Way Match</h2>
+        <p>PO-GRN-Invoice matching with payment readiness, cashflow checks, and anomaly alerts.</p>
+        <div class="stack" id="paymentSummary"></div>
+        <div class="actions">
+          <button class="btn" id="invoiceBtn">Import Supplier Invoice</button>
+          <button class="btn subtle" id="matchBtn">Run 3-Way Match</button>
+          <button class="btn caution" id="executePaymentBtn">Execute Payment</button>
+        </div>
+      </article>
+
+      <article class="card panel wide">
+        <h2>Supplier Performance Scoring</h2>
+        <p>Weighted scoring across delivery, pricing, accuracy, response time, and quality with category labels.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Metric</th><th>Weight</th><th>Score</th></tr>
+            </thead>
+            <tbody id="scoreTable"></tbody>
+          </table>
+        </div>
+        <div class="stack" id="supplierScoreSummary"></div>
+      </article>
+
+      <article class="card panel wide">
+        <h2>Audit Trail & Alerts</h2>
+        <p>Timestamped events across forecasting, approvals, communication, fulfillment, and payment activities.</p>
+        <div class="log" id="auditLog"></div>
+      </article>
+
+      <article class="card panel wide">
+        <h2>POC Artifacts</h2>
+        <p>Each workflow step generates a mock output artifact. Click any link to retrieve it.</p>
+        <div class="artifact-list" id="artifactList"></div>
+      </article>
+    </section>
+  </main>
+
   <script defer type="text/javascript" src="/main.js"></script>
 </body>
 </html>
